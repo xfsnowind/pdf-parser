@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from vision_parse import VisionParser
 import os
@@ -6,26 +7,18 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 import img2pdf
 from PIL import Image
+import tempfile
+
 
 app = FastAPI(title="PDF Parser API")
 
 
-def save_markdown_pages(markdown_pages: list[str], output_path: str) -> str:
-    """Save markdown pages to a file and return the file path."""
-    # Create output directory if it doesn't exist
-    output_dir = os.path.dirname(output_path)
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # Combine all pages with page separators
+def format_markdown_content(markdown_pages: list[str]) -> str:
+    """Format markdown pages into a single string with page separators."""
     content = ""
     for i, page_content in enumerate(markdown_pages):
         content += f"\n## Page {i+1}\n\n{page_content}\n\n---\n"
-
-    # Write to file
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    return output_path
+    return content
 
 
 def convert_image_to_pdf(image_path: str) -> str:
@@ -56,7 +49,10 @@ def convert_image_to_pdf(image_path: str) -> str:
 async def parse_pdf(file: UploadFile = File(...)):
     # Validate file type
     if not file.filename.lower().endswith((".pdf", ".jpg", ".jpeg", ".png")):
-        return {"error": "File must be a PDF or image (jpg, jpeg, png)"}
+        return JSONResponse(
+            status_code=400,
+            content={"error": "File must be a PDF or image (jpg, jpeg, png)"}
+        )
 
     # Create a temporary file to store the uploaded content
     with NamedTemporaryFile(
@@ -88,20 +84,24 @@ async def parse_pdf(file: UploadFile = File(...)):
         # Convert the file
         markdown_pages = parser.convert_pdf(file_to_parse)
 
-        # Generate output filename based on input filename
+        # Format markdown content
+        markdown_content = format_markdown_content(markdown_pages)
+
+        # Create a temporary markdown file
         output_filename = os.path.splitext(file.filename)[0] + ".md"
-        output_path = f"./output/{output_filename}"
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w", suffix=".md"
+        ) as md_file:
+            md_file.write(markdown_content)
+            md_file_path = md_file.name
 
-        # Save markdown pages to file
-        saved_path = save_markdown_pages(markdown_pages, output_path)
-
-        return {
-            "message": "File successfully converted to markdown",
-            "saved_path": saved_path,
-            "total_pages": len(markdown_pages),
-            "original_filename": file.filename,
-            "file_type": "image" if is_image else "pdf",
-        }
+        # Return the file as a downloadable response
+        return FileResponse(
+            md_file_path,
+            media_type="text/markdown",
+            filename=output_filename,
+            background=None,  # This ensures the file is deleted after sending
+        )
 
     finally:
         # Clean up temporary files
