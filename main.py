@@ -1,9 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse, FileResponse
-from pydantic import BaseModel
 from vision_parse import VisionParser
 import os
-from pathlib import Path
 from tempfile import NamedTemporaryFile
 import img2pdf
 from PIL import Image
@@ -36,7 +34,7 @@ def convert_image_to_pdf(image_path: str) -> str:
     # Convert to PDF
     pdf_path = image_path + ".pdf"
     with open(pdf_path, "wb") as f:
-        f.write(img2pdf.convert(image_path))
+        f.write(img2pdf.convert(image_path, rotation=img2pdf.Rotation.ifvalid))
 
     # Clean up RGB temporary file if it was created
     if image_path.endswith("_rgb.jpg"):
@@ -51,7 +49,7 @@ async def parse_pdf(file: UploadFile = File(...)):
     if not file.filename.lower().endswith((".pdf", ".jpg", ".jpeg", ".png")):
         return JSONResponse(
             status_code=400,
-            content={"error": "File must be a PDF or image (jpg, jpeg, png)"}
+            content={"error": "File must be a PDF or image (jpg, jpeg, png)"},
         )
 
     # Create a temporary file to store the uploaded content
@@ -66,7 +64,7 @@ async def parse_pdf(file: UploadFile = File(...)):
         # Convert image to PDF if necessary
         file_to_parse = temp_file_path
         is_image = file.filename.lower().endswith((".jpg", ".jpeg", ".png"))
-        
+
         if is_image:
             file_to_parse = convert_image_to_pdf(temp_file_path)
 
