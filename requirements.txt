@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+vision-parse[gemini]
+python-multipart
+img2pdf
+Pillow
