@@ -74,7 +74,7 @@ async def parse_pdf(file: UploadFile = File(...)):
             api_key=os.getenv("GEMINI_API_KEY"),
             temperature=0.9,
             top_p=0.4,
-            max_output_tokens=2048,
+            max_output_tokens=8192,
             image_mode="url",
             detailed_extraction=True,
         )
